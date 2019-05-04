@@ -155,7 +155,7 @@ namespace Photon.Chat
         /// On a lower level, acknowledgements and pings will prevent a server-side timeout while (e.g.) Unity loads assets.
         ///
         /// Your game logic still has to call Service regularly, or else incoming messages are not dispatched.
-        /// As this typically triggers UI updates, it's easier to call Service from the main/UI thread.
+        /// As this typicalls triggers UI updates, it's easier to call Service from the main/UI thread.
         /// </remarks>
         public bool UseBackgroundWorkerForSending { get; set; }
 
@@ -687,7 +687,7 @@ namespace Photon.Chat
         /// in the Photon Chat server. Having users on your friends list gives you access
         /// to their current online status (and whatever info your client sets in it).
         ///
-        /// Each user can set an online status consisting of an integer and an arbitrary
+        /// Each user can set an online status consisting of an integer and an arbitratry
         /// (serializable) object. The object can be null, Hashtable, object[] or anything
         /// else Photon can serialize.
         ///
@@ -976,7 +976,7 @@ namespace Photon.Chat
                     }
                     break;
                 case StatusCode.EncryptionEstablished:
-                    // once encryption is available, the client should send one (secure) authenticate. it includes the AppId (which identifies your app on the Photon Cloud)
+                    // once encryption is availble, the client should send one (secure) authenticate. it includes the AppId (which identifies your app on the Photon Cloud)
                     if (!this.didAuthenticate)
                     {
                         this.didAuthenticate = this.chatPeer.AuthenticateOnNameServer(this.AppId, this.AppVersion, this.chatRegion, this.AuthValues);
@@ -1087,57 +1087,37 @@ namespace Photon.Chat
         {
             string[] channelsInResponse = (string[])eventData.Parameters[ChatParameterCode.Channels];
             bool[] results = (bool[])eventData.Parameters[ChatParameterCode.SubscribeResults];
-            object temp;
-            if (eventData.Parameters.TryGetValue(ChatParameterCode.Properties, out temp))
-            {
-                Dictionary<object, object> channelProperties = temp as Dictionary<object, object>;
-                if (channelsInResponse.Length == 1)
-                {
-                    if (results[0])
-                    {
-                        string channelName = channelsInResponse[0];
-                        ChatChannel channel;
-                        if (this.PublicChannels.TryGetValue(channelName, out channel))
-                        {
-                            channel.Subscribers.Clear();
-                            channel.ClearProperties();
-                        }
-                        else
-                        {
-                            channel = new ChatChannel(channelName);
-                            channel.MessageLimit = this.MessageLimit;
-                            this.PublicChannels.Add(channel.Name, channel);
-                        }
-                        channel.ReadProperties(channelProperties);
-                        if (channel.PublishSubscribers)
-                        {
-                            channel.Subscribers.Add(this.UserId);
-                            if (eventData.Parameters.TryGetValue(ChatParameterCode.ChannelSubscribers, out temp))
-                            {
-                                string[] subscribers = temp as string[];
-                                channel.AddSubscribers(subscribers);
-                            }
-                        }
-                    }
-                    this.listener.OnSubscribed(channelsInResponse, results);
-                    return;
-                }
-                this.listener.DebugReturn(DebugLevel.ERROR, "Unexpected: Subscribe event for multiple channels with channels properties returned. Ignoring properties.");
-            }
             for (int i = 0; i < channelsInResponse.Length; i++)
             {
                 if (results[i])
                 {
                     string channelName = channelsInResponse[i];
                     ChatChannel channel;
-                    if (!this.PublicChannels.TryGetValue(channelName, out channel))
+                    if (!this.PublicChannels.ContainsKey(channelName))
                     {
                         channel = new ChatChannel(channelName);
                         channel.MessageLimit = this.MessageLimit;
                         this.PublicChannels.Add(channel.Name, channel);
                     }
+                    else
+                    {
+                        channel = this.PublicChannels[channelName];
+                    }
+                    if (eventData.Parameters.ContainsKey(ChatParameterCode.Properties))
+                    {
+                        Dictionary<object, object> channelProperties =
+                            eventData.Parameters[ChatParameterCode.Properties] as Dictionary<object, object>;
+                        channel.ReadProperties(channelProperties);
+                    }
+                    if (eventData.Parameters.ContainsKey(ChatParameterCode.ChannelSubscribers))
+                    {
+                        string[] subscribers = eventData.Parameters[ChatParameterCode.ChannelSubscribers] as string[];
+                        channel.TryAddSubscriber(this.UserId);
+                        channel.AddSubscribers(subscribers);
+                    }
                 }
             }
+
             this.listener.OnSubscribed(channelsInResponse, results);
         }
 
@@ -1283,7 +1263,7 @@ namespace Photon.Chat
         {
             if (this.AuthValues != null)
             {
-                if (string.IsNullOrEmpty(this.AuthValues.Token))
+                if (string.IsNullOrEmpty(AuthValues.Token))
                 {
                     if (this.DebugOut >= DebugLevel.ERROR)
                     {
@@ -1309,71 +1289,57 @@ namespace Photon.Chat
 
         private void HandleUserUnsubscribedEvent(EventData eventData)
         {
-            string channelName = eventData.Parameters[ChatParameterCode.Channel] as string;
-            string userId = eventData.Parameters[ChatParameterCode.UserId] as string;
+            var channelName = eventData.Parameters[ChatParameterCode.Channel] as string;
+            var userId = eventData.Parameters[ChatParameterCode.UserId] as string;
             ChatChannel channel;
-            if (this.PublicChannels.TryGetValue(channelName, out channel))
-            {
-                if (!channel.PublishSubscribers)
-                {
-                    if (this.DebugOut >= DebugLevel.WARNING)
-                    {
-                        this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel \"{0}\" for incoming UserUnsubscribed (\"{1}\") event does not have PublishSubscribers enabled.", channelName, userId));
-                    }
-                }
-                if (!channel.Subscribers.Remove(userId)) // user not found!
-                {
-                    if (this.DebugOut >= DebugLevel.WARNING)
-                    {
-                        this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel \"{0}\" does not contain unsubscribed user \"{1}\".", channelName, userId));
-                    }
-                }
-            }
-            else
+            if (!this.PublicChannels.TryGetValue(channelName, out channel))
             {
                 if (this.DebugOut >= DebugLevel.WARNING)
                 {
-                    this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel \"{0}\" not found for incoming UserUnsubscribed (\"{1}\") event.", channelName, userId));
+                    this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel {0} for incoming UserUnsubscribed ({1}) event not found.", channelName, userId));
                 }
+                return;
             }
+            if (!channel.Subscribers.Contains(userId)) // user not found!
+            {
+                if (this.DebugOut >= DebugLevel.WARNING)
+                {
+                    this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel {0} does not contain unsubscribed user {1}.", channelName, userId));
+                }
+                return;
+            }
+            channel.Subscribers.Remove(userId);
             this.listener.OnUserUnsubscribed(channelName, userId);
         }
 
         private void HandleUserSubscribedEvent(EventData eventData)
         {
-            string channelName = eventData.Parameters[ChatParameterCode.Channel] as string;
-            string userId = eventData.Parameters[ChatParameterCode.UserId] as string;
+            var channelName = eventData.Parameters[ChatParameterCode.Channel] as string;
+            var userId = eventData.Parameters[ChatParameterCode.UserId] as string;
             ChatChannel channel;
-            if (this.PublicChannels.TryGetValue(channelName, out channel))
-            {
-                if (!channel.PublishSubscribers)
-                {
-                    if (this.DebugOut >= DebugLevel.WARNING)
-                    {
-                        this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel \"{0}\" for incoming UserSubscribed (\"{1}\") event does not have PublishSubscribers enabled.", channelName, userId));
-                    }
-                }
-                if (!channel.Subscribers.Add(userId)) // user came back from the dead ?
-                {
-                    if (this.DebugOut >= DebugLevel.WARNING)
-                    {
-                        this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel \"{0}\" already contains newly subscribed user \"{1}\".", channelName, userId));
-                    }
-                }
-                else if (channel.MaxSubscribers > 0 && channel.Subscribers.Count > channel.MaxSubscribers)
-                {
-                    if (this.DebugOut >= DebugLevel.WARNING)
-                    {
-                        this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel \"{0}\"'s MaxSubscribers exceeded. count={1} > MaxSubscribers={2}.", channelName, channel.Subscribers.Count, channel.MaxSubscribers));
-                    }
-                }
-            }
-            else
+            if (!this.PublicChannels.TryGetValue(channelName, out channel))
             {
                 if (this.DebugOut >= DebugLevel.WARNING)
                 {
-                    this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel \"{0}\" not found for incoming UserSubscribed (\"{1}\") event.", channelName, userId));
+                    this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel {0} for incoming UserSubscribed ({1}) event not found.", channelName, userId));
                 }
+                channel = new ChatChannel(channelName);
+                PublicChannels.Add(channelName, channel);
+            }
+            if (channel.Subscribers.Contains(userId)) // user came back from the dead ?
+            {
+                if (this.DebugOut >= DebugLevel.WARNING)
+                {
+                    this.listener.DebugReturn(DebugLevel.WARNING, string.Format("Channel {0} already contains newly subscribed user {1}.", channelName, userId));
+                } 
+                return;
+            }
+            channel.Subscribers.Add(userId);
+            if (channel.Subscribers.Count > channel.MaxSubscribers)
+            {
+                this.listener.DebugReturn(DebugLevel.WARNING, 
+                    string.Format("Channel {0} max subscribers exceeded? count={1} > MaxSubscribers={2}.", 
+                    channelName, channel.Subscribers.Count, channel.MaxSubscribers));
             }
             this.listener.OnUserSubscribed(channelName, userId);
         }
@@ -1381,7 +1347,7 @@ namespace Photon.Chat
         #endregion
 
         /// <summary>
-        /// Subscribe to a single channel and optionally sets its well-know channel properties in case the channel is created.
+        /// Subscribe to a single channel and optionally sets its well-know channel properties in case the channel is created 
         /// </summary>
         /// <param name="channel">name of the channel to subscribe to</param>
         /// <param name="lastMsgId">ID of the last received message from this channel when re subscribing to receive only missed messages, default is 0</param>

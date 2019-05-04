@@ -42,7 +42,7 @@ namespace Photon.Pun
         public string PUNWizardLabel = "PUN Wizard";
         public string SettingsButton = "Settings";
         public string SetupServerCloudLabel = "Setup wizard for setting up your own server or the cloud.";
-        public string WarningPhotonDisconnect = string.Empty;
+        public string WarningPhotonDisconnect = "";
         public string StartButton = "Start";
         public string LocateSettingsButton = "Locate PhotonServerSettings";
         public string SettingsHighlightLabel = "Highlights the used photon settings file in the project.";
@@ -146,7 +146,7 @@ namespace Photon.Pun
             EditorApplication.playmodeStateChanged += PlaymodeStateChanged;
             #endif
 
-			#if (UNITY_2018 || UNITY_2018_1_OR_NEWER)
+            #if UNITY_2018
             EditorApplication.projectChanged += EditorUpdate;
             EditorApplication.hierarchyChanged += EditorUpdate;
             #else
@@ -292,7 +292,7 @@ namespace Photon.Pun
 
             PhotonSetupStates oldGuiState = this.photonSetupState; // used to fix an annoying Editor input field issue: wont refresh until focus is changed.
 
-            GUI.SetNextControlName(string.Empty);
+            GUI.SetNextControlName("");
             this.scrollPos = GUILayout.BeginScrollView(this.scrollPos);
 
 
@@ -310,7 +310,7 @@ namespace Photon.Pun
 
             if (oldGuiState != this.photonSetupState)
             {
-                GUI.FocusControl(string.Empty);
+                GUI.FocusControl("");
             }
         }
 
@@ -341,36 +341,21 @@ namespace Photon.Pun
             // input of appid or mail
             EditorGUILayout.Separator();
             GUILayout.Label(CurrentLang.EmailOrAppIdLabel);
-            this.mailOrAppId = EditorGUILayout.TextField(this.mailOrAppId); 
-            if (!string.IsNullOrEmpty(this.mailOrAppId))
+            this.mailOrAppId = EditorGUILayout.TextField(this.mailOrAppId).Trim(); // note: we trim all input
+
+            if (this.mailOrAppId.Contains("@"))
             {
-                this.mailOrAppId = this.mailOrAppId.Trim(); // note: we trim all input
-                if (PhotonEditor.IsValidEmail(this.mailOrAppId))
-                {
-                    // this should be a mail address
-                    this.minimumInput = true;
-                    this.useMail = this.minimumInput;
-                    this.useAppId = false;
-                }
-                else if (ServerSettings.IsAppId(this.mailOrAppId))
-                {
-                    // this should be an appId
-                    this.minimumInput = true;
-                    this.useMail = false;
-                    this.useAppId = this.minimumInput;
-                }
-                else
-                {
-                    this.minimumInput = false;
-                    this.useMail = false;
-                    this.useAppId = false;
-                }
+                // this should be a mail address
+                this.minimumInput = (this.mailOrAppId.Length >= 5 && this.mailOrAppId.Contains("."));
+                this.useMail = this.minimumInput;
+                this.useAppId = false;
             }
             else
             {
-                this.minimumInput = false;
+                // this should be an appId
+                this.minimumInput = ServerSettings.IsAppId(this.mailOrAppId);
                 this.useMail = false;
-                this.useAppId = false;
+                this.useAppId = this.minimumInput;
             }
 
             // button to skip setup
@@ -419,8 +404,8 @@ namespace Photon.Pun
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button(new GUIContent(CurrentLang.OpenCloudDashboardText, CurrentLang.OpenCloudDashboardTooltip), GUILayout.Width(205)))
                 {
-                    Application.OpenURL(string.Concat(UrlCloudDashboard, Uri.EscapeUriString(this.mailOrAppId)));
-                    this.mailOrAppId = string.Empty;
+                    Application.OpenURL(UrlCloudDashboard + Uri.EscapeUriString(this.mailOrAppId));
+                    this.mailOrAppId = "";
                 }
                 GUILayout.FlexibleSpace();
                 GUILayout.EndHorizontal();
@@ -567,11 +552,8 @@ namespace Photon.Pun
 
 
             AccountService client = new AccountService();
-            client.RegisterByEmail(email, RegisterOrigin, accountServiceType, RegisterWithEmailCallback); // this is the synchronous variant using the static RegisterOrigin. "result" is in the client
-        }
+            client.RegisterByEmail(email, RegisterOrigin, accountServiceType); // this is the synchronous variant using the static RegisterOrigin. "result" is in the client
 
-        private void RegisterWithEmailCallback(AccountService client)
-        {
             EditorUtility.ClearProgressBar();
             if (client.ReturnCode == 0)
             {
@@ -589,6 +571,7 @@ namespace Photon.Pun
             {
                 PhotonEditor.SaveSettings();
 
+                Debug.LogWarning(client.Message + " ReturnCode: " + client.ReturnCode);
                 if (client.Message.Contains("registered"))
                 {
                     this.photonSetupState = PhotonSetupStates.EmailAlreadyRegistered;
@@ -617,23 +600,6 @@ namespace Photon.Pun
             EditorUtility.SetDirty(PhotonNetwork.PhotonServerSettings);
         }
 
-        // https://stackoverflow.com/a/1374644/1449056
-        private static bool IsValidEmail(string email)
-        {
-            if (string.IsNullOrEmpty(email) || !email.Contains("@"))
-            {
-                return false;
-            }
-            try
-            {
-                System.Net.Mail.MailAddress addr = new System.Net.Mail.MailAddress(email);
-                return email.Equals(addr.Address);
-            }
-            catch
-            {
-                return false;
-            }
-        }
 
         #region RPC List Handling
 

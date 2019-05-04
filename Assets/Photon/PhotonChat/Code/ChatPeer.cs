@@ -205,9 +205,6 @@ namespace Photon.Chat
         /// <summary>Authenticates users by their Xbox Account and XSTS token.</summary>
         Xbox = 5,
 
-        /// <summary>Authenticates users by their HTC VIVEPORT Account and user token.</summary>
-        Viveport = 10,
-
         /// <summary>Disables custom authentification. Same as not providing any AuthenticationValues for connect (more precisely for: OpAuthenticate).</summary>
         None = byte.MaxValue
     }
@@ -243,13 +240,10 @@ namespace Photon.Chat
         }
 
         /// <summary>This string must contain any (http get) parameters expected by the used authentication service. By default, username and token.</summary>
-        /// <remarks>
-        /// Maps to operation parameter 216.
-        /// Standard http get parameters are used here and passed on to the service that's defined in the server (Photon Cloud Dashboard).</remarks>
+        /// <remarks>Standard http get parameters are used here and passed on to the service that's defined in the server (Photon Cloud Dashboard).</remarks>
         public string AuthGetParameters { get; set; }
 
         /// <summary>Data to be passed-on to the auth service via POST. Default: null (not sent). Either string or byte[] (see setters).</summary>
-        /// <remarks>Maps to operation parameter 214.</remarks>
         public object AuthPostData { get; private set; }
 
         /// <summary>After initial authentication, Photon provides a token for this client / user, which is subsequently used as (cached) validation.</summary>
@@ -285,13 +279,13 @@ namespace Photon.Chat
             this.AuthPostData = byteData;
         }
 
-        /// <summary>Adds a key-value pair to the get-parameters used for Custom Auth (AuthGetParameters).</summary>
+        /// <summary>Adds a key-value pair to the get-parameters used for Custom Auth.</summary>
         /// <remarks>This method does uri-encoding for you.</remarks>
         /// <param name="key">Key for the value to set.</param>
         /// <param name="value">Some value relevant for Custom Authentication.</param>
         public virtual void AddAuthParameter(string key, string value)
         {
-            string ampersand = string.IsNullOrEmpty(this.AuthGetParameters) ? string.Empty : "&";
+            string ampersand = string.IsNullOrEmpty(this.AuthGetParameters) ? "" : "&";
             this.AuthGetParameters = string.Format("{0}{1}{2}={3}", this.AuthGetParameters, ampersand, System.Uri.EscapeDataString(key), System.Uri.EscapeDataString(value));
         }
         /// <summary>
@@ -373,13 +367,13 @@ namespace Photon.Chat
         /// <summary>(32761) Not in use currently.</summary>
         public const int UserBlocked = 0x7FFF - 6;
 
-        /// <summary>(32760) Random matchmaking only succeeds if a room exists that is neither closed nor full. Repeat in a few seconds or create a new room.</summary>
+        /// <summary>(32760) Random matchmaking only succeeds if a room exists thats neither closed nor full. Repeat in a few seconds or create a new room.</summary>
         public const int NoRandomMatchFound = 0x7FFF - 7;
 
         /// <summary>(32758) Join can fail if the room (name) is not existing (anymore). This can happen when players leave while you join.</summary>
         public const int GameDoesNotExist = 0x7FFF - 9;
 
-        /// <summary>(32757) Authorization on the Photon Cloud failed because the concurrent users (CCU) limit of the app's subscription is reached.</summary>
+        /// <summary>(32757) Authorization on the Photon Cloud failed becaus the concurrent users (CCU) limit of the app's subscription is reached.</summary>
         /// <remarks>
         /// Unless you have a plan with "CCU Burst", clients might fail the authentication step during connect.
         /// Affected client are unable to call operations. Please note that players who end a game and return

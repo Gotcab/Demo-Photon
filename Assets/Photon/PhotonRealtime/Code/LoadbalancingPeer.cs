@@ -204,6 +204,8 @@ namespace Photon.Realtime
 
 
             int flags = 0;  // a new way to send the room options as bitwise-flags
+            flags = flags | (int)RoomOptionBit.BroadcastPropsChangeToAll;               // we want this as new default value. this avoids inconsistent properties
+
 
             if (roomOptions.CleanupCacheOnLeave)
             {
@@ -481,15 +483,6 @@ namespace Photon.Realtime
                 if (this.DebugOut >= DebugLevel.INFO)
                 {
                     this.Listener.DebugReturn(DebugLevel.INFO, "OpGetGameList not sent. LobbyType must be SqlLobby.");
-                }
-                return false;
-            }
-
-            if (string.IsNullOrEmpty(queryData))
-            {
-                if (this.DebugOut >= DebugLevel.INFO)
-                {
-                    this.Listener.DebugReturn(DebugLevel.INFO, "OpGetGameList not sent. queryData must be not null and not empty.");
                 }
                 return false;
             }
@@ -1861,12 +1854,6 @@ namespace Photon.Realtime
         /// <summary>Authenticates users by their Xbox Account and XSTS token.</summary>
         Xbox = 5,
 
-        /// <summary>Authenticates users by their HTC Viveport Account and user token. Set AuthGetParameters to "userToken=[userToken]"</summary>
-        Viveport = 10,
-
-        /// <summary>Authenticates users by their NSA ID.</summary>
-        NintendoSwitch = 11,
-
         /// <summary>Disables custom authentification. Same as not providing any AuthenticationValues for connect (more precisely for: OpAuthenticate).</summary>
         None = byte.MaxValue
     }
@@ -1905,14 +1892,10 @@ namespace Photon.Realtime
         }
 
         /// <summary>This string must contain any (http get) parameters expected by the used authentication service. By default, username and token.</summary>
-        /// <remarks>
-        /// Maps to operation parameter 216.
-        /// Standard http get parameters are used here and passed on to the service that's defined in the server (Photon Cloud Dashboard).
-        /// </remarks>
+        /// <remarks>Standard http get parameters are used here and passed on to the service that's defined in the server (Photon Cloud Dashboard).</remarks>
         public string AuthGetParameters { get; set; }
 
         /// <summary>Data to be passed-on to the auth service via POST. Default: null (not sent). Either string or byte[] (see setters).</summary>
-        /// <remarks>Maps to operation parameter 214.</remarks>
         public object AuthPostData { get; private set; }
 
         /// <summary>After initial authentication, Photon provides a token for this client / user, which is subsequently used as (cached) validation.</summary>
@@ -1959,7 +1942,7 @@ namespace Photon.Realtime
             this.AuthPostData = dictData;
         }
 
-        /// <summary>Adds a key-value pair to the get-parameters used for Custom Auth (AuthGetParameters).</summary>
+        /// <summary>Adds a key-value pair to the get-parameters used for Custom Auth.</summary>
         /// <remarks>This method does uri-encoding for you.</remarks>
         /// <param name="key">Key for the value to set.</param>
         /// <param name="value">Some value relevant for Custom Authentication.</param>
