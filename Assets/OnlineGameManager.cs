@@ -10,22 +10,26 @@ public class OnlineGameManager : MonoBehaviourPunCallbacks
     public TextMeshProUGUI text;
     public GameObject playerPrefab;
 
-    public Color[] playerColors = new Color[4];
+    public SpawnPoint[] spawns;
 
-    public Transform[] spawns = new Transform[4];
-
-    public bool[] availableSlots = new bool[4] { true, true, true, true };
+    private int spawnIndex;
 
     // Not seen by you
     public override void OnPlayerEnteredRoom(Player newPlayer)
     {
-        text.text = text.text + Environment.NewLine + $"Player {newPlayer.ActorNumber} joined the room";       
+        text.text = text.text + Environment.NewLine + $"Player {newPlayer.ActorNumber} joined the room";
     }
 
     //No seen by you
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         text.text = text.text + Environment.NewLine + $"Player {otherPlayer.ActorNumber} left the room";
+    }
+
+    public void LeaveRoom()
+    {
+        photonView.RPC(nameof(ReleaseSpawnPoint), RpcTarget.Others, new object[] { spawnIndex, photonView.OwnerActorNr });
+        PhotonNetwork.LeaveRoom();
     }
 
     public override void OnLeftRoom()
@@ -35,47 +39,37 @@ public class OnlineGameManager : MonoBehaviourPunCallbacks
 
     private void Start()
     {
-        // Ask to instantiate our player
-        photonView.RPC(nameof(RequestPlayer), RpcTarget.MasterClient, new object[] { photonView.OwnerActorNr });
-            
+        SpawnPoint spawn = GetAvailableSpawn();
+        Color playerColor = spawn.playerColor;
+        PhotonNetwork.Instantiate(playerPrefab.name, spawn.transform.position, spawn.transform.rotation, 0, new object[] { playerColor.r, playerColor.g, playerColor.b });
+
     }
 
-    /// <summary>
-    /// This is executed on the MasterClient
-    /// </summary>
-    /// <param name="actor"></param>
-    [PunRPC]
-    private void RequestPlayer(int actor)
+    private SpawnPoint GetAvailableSpawn()
     {
-        int slot = GetAvailableSlot();
-        photonView.RPC(
-            nameof(SpawnPlayer), 
-            PhotonNetwork.PlayerList[actor], 
-            new object[] { spawns[slot].position, spawns[slot].rotation });
-    }
-
-    /// <summary>
-    /// This is executed on the client requesting a player
-    /// </summary>
-    /// <param name="position"></param>
-    /// <param name="rotation"></param>
-    [PunRPC]
-    private void SpawnPlayer(Vector3 position, Quaternion rotation)
-    {
-        PhotonNetwork.Instantiate(playerPrefab.name, position, rotation);
-    }
-
-    private int GetAvailableSlot()
-    {
-        int i;
-
-        for (i = 0; i < availableSlots.Length; i++)
+        SpawnPoint spawn = null;
+        for (int i = 0; i < spawns.Length; i++)
         {
-            if (availableSlots[i] == true)
-            {          
+            if (spawns[i].IsAvailable)
+            {
+                spawn = spawns[i];
+                spawnIndex = i;
+                photonView.RPC(nameof(UseSpawnPoint), RpcTarget.AllBufferedViaServer, new object[] { spawnIndex, PhotonNetwork.LocalPlayer.ActorNumber });
                 break;
             }
         }
-        return i;
+        return spawn;
+    }
+
+    [PunRPC]
+    public void UseSpawnPoint(int index, int playerId)
+    {
+        spawns[index].Use(playerId);
+    }
+
+    [PunRPC]
+    public void ReleaseSpawnPoint(int index, int playerId)
+    {
+        spawns[index].Release(playerId);
     }
 }

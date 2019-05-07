@@ -36,5 +36,7 @@ MonoBehaviour:
   - Display
   - RequestPlayer
   - SpawnPlayer
+  - ReleaseSpawnPoint
+  - UseSpawnPoint
   DisableAutoOpenWizard: 1
   ShowSettings: 1
